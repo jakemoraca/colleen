@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arcade Hour</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Arcade Hour</h1>
+      <p>Pick a game and keep the fun going.</p>
+      <div class="meta">
+        <span>Goal: survive up to 60 minutes</span>
+        <span id="sessionTime">Session: 00:00</span>
+      </div>
+    </header>
+
+    <main>
+      <aside class="menu">
+        <h2>Games</h2>
+        <div class="buttons">
+          <button data-game="pong" class="active">Pong</button>
+          <button data-game="snake">Snake</button>
+          <button data-game="breakout">Breakout</button>
+        </div>
+        <h3>Controls</h3>
+        <ul id="controlsList"></ul>
+        <p class="hint">Tip: switch games anytime to keep things fresh.</p>
+      </aside>
+
+      <section class="play-area">
+        <canvas id="gameCanvas" width="900" height="520"></canvas>
+        <div class="hud">
+          <div id="gameTitle">Pong</div>
+          <div id="scoreLine">Score: 0</div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <small>Built with vanilla HTML/CSS/JS • No installs needed</small>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
