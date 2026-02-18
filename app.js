@@ -38,7 +38,7 @@ const gameConfig = {
   },
   blackjack: {
     title: "Blackjack",
-    controls: ["H: hit", "S: stand", "R: deal a new hand"],
+    controls: ["H: hit", "S: stand", "R: deal a new hand", "Dealer hits on soft 16"],
   },
 };
 
@@ -465,7 +465,16 @@ function handValue(hand) {
 function shouldDealerHit(dealerHand) {
   const { total, soft } = handValue(dealerHand);
   if (total < 16) return true;
+  // House rule: dealer must draw on a soft 16 (A+5, A+2+3, etc.).
   return total === 16 && soft;
+}
+
+function playDealerTurn() {
+  const b = state.blackjack;
+  b.phase = "dealer-turn";
+  while (shouldDealerHit(b.dealerHand)) {
+    b.dealerHand.push(dealCardBlackjack());
+  }
 }
 
 function dealCardBlackjack() {
@@ -514,10 +523,7 @@ function startBlackjackRound() {
   b.result = "";
 
   if (handValue(b.playerHand).total === 21) {
-    b.phase = "dealer-turn";
-    while (shouldDealerHit(b.dealerHand)) {
-      b.dealerHand.push(dealCardBlackjack());
-    }
+    playDealerTurn();
     settleBlackjackRound();
   }
 }
@@ -556,10 +562,7 @@ function updateBlackjack() {
     }
 
     if (standPressed && !b.controlsHeld.stand) {
-      b.phase = "dealer-turn";
-      while (shouldDealerHit(b.dealerHand)) {
-        b.dealerHand.push(dealCardBlackjack());
-      }
+      playDealerTurn();
       settleBlackjackRound();
     }
   }
