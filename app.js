@@ -36,6 +36,10 @@ const gameConfig = {
     title: "Breakout",
     controls: ["Arrow keys / A-D: move paddle", "Break all bricks", "Space: restart after game over"],
   },
+  blackjack: {
+    title: "Blackjack",
+    controls: ["H: hit", "S: stand", "R: deal a new hand"],
+  },
 };
 
 const state = {
@@ -44,7 +48,11 @@ const state = {
   pong: {},
   snake: {},
   breakout: {},
+  blackjack: {},
 };
+
+const cardSuits = ["♠", "♥", "♦", "♣"];
+const cardRanks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 
 function setControls(gameKey) {
   gameTitle.textContent = gameConfig[gameKey].title;
@@ -416,6 +424,223 @@ function drawBreakout() {
   }
 }
 
+function createShuffledDeck() {
+  const deck = [];
+  for (const suit of cardSuits) {
+    for (const rank of cardRanks) {
+      deck.push({ suit, rank });
+    }
+  }
+
+  for (let i = deck.length - 1; i > 0; i -= 1) {
+    const j = randInt(0, i);
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+
+  return deck;
+}
+
+function cardValue(card) {
+  if (card.rank === "A") return 11;
+  if (["K", "Q", "J"].includes(card.rank)) return 10;
+  return Number(card.rank);
+}
+
+function handValue(hand) {
+  let total = 0;
+  let aces = 0;
+  for (const card of hand) {
+    total += cardValue(card);
+    if (card.rank === "A") aces += 1;
+  }
+
+  while (total > 21 && aces > 0) {
+    total -= 10;
+    aces -= 1;
+  }
+
+  return { total, soft: aces > 0 };
+}
+
+function shouldDealerHit(dealerHand) {
+  const { total, soft } = handValue(dealerHand);
+  if (total < 16) return true;
+  return total === 16 && soft;
+}
+
+function dealCardBlackjack() {
+  const b = state.blackjack;
+  if (b.deck.length === 0) {
+    b.deck = createShuffledDeck();
+  }
+  return b.deck.pop();
+}
+
+function settleBlackjackRound() {
+  const b = state.blackjack;
+  const player = handValue(b.playerHand).total;
+  const dealer = handValue(b.dealerHand).total;
+
+  if (player > 21) {
+    b.message = "Bust! Dealer wins.";
+    b.result = "loss";
+  } else if (dealer > 21) {
+    b.message = "Dealer busts! You win.";
+    b.result = "win";
+  } else if (player > dealer) {
+    b.message = "You win!";
+    b.result = "win";
+  } else if (player < dealer) {
+    b.message = "Dealer wins.";
+    b.result = "loss";
+  } else {
+    b.message = "Push.";
+    b.result = "push";
+  }
+
+  if (b.result === "win") b.wins += 1;
+  if (b.result === "loss") b.losses += 1;
+  if (b.result === "push") b.pushes += 1;
+
+  b.phase = "round-over";
+}
+
+function startBlackjackRound() {
+  const b = state.blackjack;
+  b.playerHand = [dealCardBlackjack(), dealCardBlackjack()];
+  b.dealerHand = [dealCardBlackjack(), dealCardBlackjack()];
+  b.phase = "player-turn";
+  b.message = "Your move: hit or stand.";
+  b.result = "";
+
+  if (handValue(b.playerHand).total === 21) {
+    b.phase = "dealer-turn";
+    while (shouldDealerHit(b.dealerHand)) {
+      b.dealerHand.push(dealCardBlackjack());
+    }
+    settleBlackjackRound();
+  }
+}
+
+function resetBlackjack() {
+  state.blackjack = {
+    deck: createShuffledDeck(),
+    playerHand: [],
+    dealerHand: [],
+    phase: "idle",
+    message: "Press R to deal.",
+    result: "",
+    wins: 0,
+    losses: 0,
+    pushes: 0,
+    controlsHeld: { hit: false, stand: false, deal: false },
+  };
+}
+
+function updateBlackjack() {
+  const b = state.blackjack;
+  const hitPressed = keys.has("h") || keys.has("H");
+  const standPressed = keys.has("s") || keys.has("S");
+  const dealPressed = keys.has("r") || keys.has("R");
+
+  if (dealPressed && !b.controlsHeld.deal) {
+    startBlackjackRound();
+  }
+
+  if (b.phase === "player-turn") {
+    if (hitPressed && !b.controlsHeld.hit) {
+      b.playerHand.push(dealCardBlackjack());
+      if (handValue(b.playerHand).total > 21) {
+        settleBlackjackRound();
+      }
+    }
+
+    if (standPressed && !b.controlsHeld.stand) {
+      b.phase = "dealer-turn";
+      while (shouldDealerHit(b.dealerHand)) {
+        b.dealerHand.push(dealCardBlackjack());
+      }
+      settleBlackjackRound();
+    }
+  }
+
+  b.controlsHeld.hit = hitPressed;
+  b.controlsHeld.stand = standPressed;
+  b.controlsHeld.deal = dealPressed;
+}
+
+function drawCard(card, x, y, hidden = false) {
+  const cardW = 88;
+  const cardH = 126;
+  ctx.fillStyle = hidden ? "#2f4f7d" : "#f5f7ff";
+  ctx.fillRect(x, y, cardW, cardH);
+  ctx.strokeStyle = hidden ? "#6f95d4" : "#0f1733";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, cardW, cardH);
+
+  if (hidden) {
+    ctx.strokeStyle = "rgba(255,255,255,0.3)";
+    for (let i = 10; i < cardW; i += 14) {
+      ctx.beginPath();
+      ctx.moveTo(x + i, y + 6);
+      ctx.lineTo(x + i - 8, y + cardH - 6);
+      ctx.stroke();
+    }
+    return;
+  }
+
+  const isRed = card.suit === "♥" || card.suit === "♦";
+  ctx.fillStyle = isRed ? "#d22d4f" : "#101a33";
+  ctx.font = "700 24px Inter, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(card.rank, x + 10, y + 28);
+  ctx.font = "700 26px Inter, sans-serif";
+  ctx.fillText(card.suit, x + 10, y + 56);
+}
+
+function drawHand(cards, y, hideSecondCard = false) {
+  cards.forEach((card, i) => {
+    drawCard(card, 80 + i * 102, y, hideSecondCard && i === 1);
+  });
+}
+
+function drawBlackjack() {
+  const b = state.blackjack;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const felt = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  felt.addColorStop(0, "#154e3f");
+  felt.addColorStop(1, "#0d3026");
+  ctx.fillStyle = felt;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const hideDealerHole = b.phase === "player-turn";
+  drawHand(b.dealerHand, 90, hideDealerHole);
+  drawHand(b.playerHand, 300, false);
+
+  ctx.fillStyle = "#e9fff6";
+  ctx.font = "700 26px Inter, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("Dealer", 80, 70);
+  ctx.fillText("Player", 80, 280);
+
+  const playerTotal = handValue(b.playerHand).total;
+  const dealerTotal = handValue(b.dealerHand).total;
+  const dealerLine = hideDealerHole
+    ? `Dealer Total: ${cardValue(b.dealerHand[0] || { rank: "0" })}+?`
+    : `Dealer Total: ${dealerTotal}`;
+
+  ctx.font = "600 24px Inter, sans-serif";
+  ctx.fillText(dealerLine, 540, 138);
+  ctx.fillText(`Player Total: ${playerTotal || 0}`, 540, 348);
+
+  ctx.font = "700 28px Inter, sans-serif";
+  ctx.fillStyle = "#c4ffe4";
+  ctx.fillText(b.message, 80, 470);
+
+  scoreLine.textContent = `Wins: ${b.wins} • Losses: ${b.losses} • Pushes: ${b.pushes}`;
+}
+
 function tickSessionClock() {
   const elapsedSec = Math.floor((performance.now() - state.startedAt) / 1000);
   const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
@@ -432,9 +657,12 @@ function gameLoop() {
   } else if (state.game === "snake") {
     updateSnake();
     drawSnake();
-  } else {
+  } else if (state.game === "breakout") {
     updateBreakout();
     drawBreakout();
+  } else {
+    updateBlackjack();
+    drawBlackjack();
   }
 
   requestAnimationFrame(gameLoop);
@@ -443,5 +671,6 @@ function gameLoop() {
 resetPong();
 resetSnake();
 resetBreakout();
+resetBlackjack();
 setControls(state.game);
 requestAnimationFrame(gameLoop);
